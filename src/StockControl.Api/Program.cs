@@ -38,7 +38,9 @@ builder.Services.AddDbContext<StockDbContext>(options =>
 builder.Services.AddHealthChecks()
     .AddNpgSql(connectionString);
 
-builder.Services.AddInfrastructure();
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddScoped<CreateStockItemService>();
 builder.Services.AddScoped<GetStockItemByIdService>();

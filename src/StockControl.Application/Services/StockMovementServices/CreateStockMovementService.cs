@@ -1,7 +1,10 @@
+using Microsoft.AspNetCore.Http;
+using StockControl.Application.Abstractions.Messaging;
 using StockControl.Application.DTOs.StockMovements;
 using StockControl.Application.Exceptions;
 using StockControl.Application.Interfaces;
 using StockControl.Application.Interfaces.Repositories;
+using StockControl.Contracts.Events;
 using StockControl.Domain.Entities;
 using StockControl.Domain.Enums;
 
@@ -12,15 +15,21 @@ public class CreateStockMovementService
     private readonly IStockItemRepository _stockRepository;
     private readonly IStockMovementRepository _stockMovementRepository;
     private readonly IUnitOfWork _unitOfWork;
+    private readonly IStockEventPublisher _stockEventPublisher;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
     public CreateStockMovementService(
         IStockItemRepository stockRepository,
         IStockMovementRepository stockMovementRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork,
+        IStockEventPublisher stockEventPublisher,
+        IHttpContextAccessor httpContextAccessor)
     {
         _stockRepository = stockRepository;
         _stockMovementRepository = stockMovementRepository;
         _unitOfWork = unitOfWork;
+        _stockEventPublisher = stockEventPublisher;
+        _httpContextAccessor = httpContextAccessor;
     }
 
     public async Task<StockMovementResponseDto> ExecuteAsync(CreateStockMovementDto dto, CancellationToken cancellationToken = default)
@@ -55,6 +64,7 @@ public class CreateStockMovementService
             case StockMovementType.In:
                 currentQuantity = previousQuantity + dto.Quantity;
                 break;
+
             case StockMovementType.Out:
                 currentQuantity = previousQuantity - dto.Quantity;
                 if (currentQuantity < 0)
@@ -62,6 +72,7 @@ public class CreateStockMovementService
                     throw new ConflictException("Insufficient stock for this movement.");
                 }
                 break;
+
             case StockMovementType.Adjust:
                 currentQuantity = dto.Quantity;
                 break;
@@ -69,6 +80,10 @@ public class CreateStockMovementService
 
         stock.QuantityAvailable = currentQuantity;
         stock.UpdatedAt = DateTime.UtcNow;
+
+        var correlationId = _httpContextAccessor.HttpContext?.Items["X-Request-Id"]?.ToString()
+            ?? _httpContextAccessor.HttpContext?.TraceIdentifier
+            ?? Guid.NewGuid().ToString("N");
 
         var stockMovement = new StockMovement
         {
@@ -80,11 +95,12 @@ public class CreateStockMovementService
             PreviousQuantity = previousQuantity,
             CurrentQuantity = currentQuantity,
             Reason = dto.Reason,
-            TraceId = dto.TraceId,
+            TraceId = correlationId,
             CreatedAt = DateTime.UtcNow
         };
 
         await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
         try
         {
             _stockRepository.Update(stock);
@@ -96,6 +112,17 @@ public class CreateStockMovementService
             await _unitOfWork.RollbackAsync(cancellationToken);
             throw;
         }
+
+        var @event = new StockMovementCreatedEvent
+        {
+            MovementId = stockMovement.Id,
+            ProductId = stockMovement.ProductId,
+            MovementType = stockMovement.MovementType.ToString(),
+            Quantity = stockMovement.Quantity,
+            CorrelationId = correlationId
+        };
+
+        await _stockEventPublisher.PublishStockMovementCreatedAsync(@event, cancellationToken);
 
         return new StockMovementResponseDto
         {

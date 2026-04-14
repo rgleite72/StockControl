@@ -3,10 +3,13 @@
   <ItemGroup>
     <ProjectReference Include="..\StockControl.Application\StockControl.Application.csproj" />
     <ProjectReference Include="..\StockControl.Domain\StockControl.Domain.csproj" />
+    <ProjectReference Include="..\StockControl.Contracts\StockControl.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.*" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.5" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.*" />
   </ItemGroup>
 

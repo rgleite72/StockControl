@@ -2,6 +2,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\StockControl.Domain\StockControl.Domain.csproj" />
+    <ProjectReference Include="..\StockControl.Contracts\StockControl.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.9" />
   </ItemGroup>
 
   <PropertyGroup>
